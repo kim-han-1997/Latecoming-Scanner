@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>SAJC Late Scanner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+:root {
+  --cream: #FAF8F3; --ink: #1C1F1C; --muted: #6E7268;
+  --green: #2F5233; --green-dk: #203A24; --green-lt: #E8EEE7;
+  --gold: #C79A4B; --gold-lt: #F5EBD6; --line: #E4E0D6; --r: 16px;
+}
+html { font-size: 16px; }
+body { background: var(--cream); color: var(--ink); font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
+#app { width: 100%; max-width: 480px; margin: 0 auto; padding: 0 20px 56px; }
+
+.topbar { display: flex; align-items: center; justify-content: space-between; padding: 18px 0 10px; }
+.back-btn { border: none; background: none; color: var(--muted); font: 600 16px/1 'Inter'; cursor: pointer; padding: 10px 12px; margin-left: -12px; border-radius: 10px; min-height: 44px; display: flex; align-items: center; }
+.back-btn:active { background: var(--green-lt); }
+.dots { display: flex; gap: 6px; }
+.dot { width: 24px; height: 4px; border-radius: 2px; background: var(--line); transition: background .2s; }
+.dot.on { background: var(--green); }
+
+.screen { display: none; }
+.screen.active { display: block; animation: rise .25s ease; }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+.eye { font: 700 11px/1 'Inter'; letter-spacing: .08em; text-transform: uppercase; color: var(--gold); margin-bottom: 10px; }
+h1 { font: 700 30px/1.18 'Fraunces', serif; margin-bottom: 8px; }
+.sub { font-size: 15px; color: var(--muted); line-height: 1.5; margin-bottom: 24px; }
+
+.venue-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 28px; }
+.vc { border: 1.5px solid var(--line); background: #fff; border-radius: var(--r); padding: 22px 12px; font: 600 16px/1 'Inter'; color: var(--ink); text-align: center; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: all .14s; }
+.vc:active { transform: scale(.97); }
+.vc.on { border-color: var(--green); background: var(--green-lt); color: var(--green); }
+
+.viewfinder { position: relative; width: 100%; border-radius: 14px; overflow: hidden; background: #000; aspect-ratio: 4/3; display: none; margin-bottom: 16px; }
+.viewfinder.show { display: block; }
+#video { width: 100%; height: 100%; object-fit: cover; display: block; }
+#overlay { position: absolute; inset: 0; pointer-events: none; }
+#overlay svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.shutter-row { display: none; align-items: center; justify-content: space-around; margin-bottom: 16px; }
+.shutter-row.show { display: flex; }
+.side-btn { border: none; background: rgba(0,0,0,.06); color: var(--muted); font: 600 13px/1 'Inter'; padding: 11px 16px; border-radius: 20px; cursor: pointer; }
+.shutter { width: 68px; height: 68px; border-radius: 50%; background: var(--green); border: 4px solid rgba(255,255,255,.4); cursor: pointer; box-shadow: 0 3px 14px rgba(0,0,0,.2); transition: transform .1s; }
+.shutter:active { transform: scale(.88); }
+
+.cam-start { background: #fff; border: 1.5px solid var(--line); border-radius: 14px; padding: 24px; text-align: center; margin-bottom: 20px; }
+.cam-start p { font-size: 14px; color: var(--muted); margin-bottom: 16px; line-height: 1.5; }
+
+.ocr-overlay { display: none; background: rgba(0,0,0,.75); border-radius: 14px; padding: 32px 24px; text-align: center; margin-bottom: 16px; }
+.ocr-overlay.show { display: block; }
+.ocr-overlay p { color: rgba(255,255,255,.85); font-size: 14px; margin-top: 14px; }
+.ring { width: 40px; height: 40px; border-radius: 50%; border: 4px solid rgba(255,255,255,.2); border-top-color: #fff; animation: spin .7s linear infinite; margin: 0 auto; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.tip { background: var(--gold-lt); border: 1.5px solid #e2cb8e; border-radius: 14px; padding: 14px; display: flex; gap: 12px; font-size: 14px; color: #5c3f0e; line-height: 1.5; margin-bottom: 24px; }
+.tip-i { flex-shrink: 0; font-size: 18px; margin-top: 1px; }
+
+.search-box { position: relative; margin-bottom: 14px; }
+.search-box input { width: 100%; padding: 15px 14px 15px 46px; border: 1.5px solid var(--line); border-radius: 14px; font: 16px/1 'Inter'; background: #fff; color: var(--ink); outline: none; transition: border-color .15s; }
+.search-box input:focus { border-color: var(--green); }
+.s-icon { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); font-size: 18px; color: var(--muted); }
+.ocr-row { display: none; align-items: center; gap: 10px; padding: 14px 0 8px; color: var(--muted); font-size: 14px; }
+.ocr-row.show { display: flex; }
+.spin { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid var(--line); border-top-color: var(--green); animation: spin .6s linear infinite; }
+.matches { display: flex; flex-direction: column; gap: 8px; max-height: 44vh; overflow-y: auto; margin-bottom: 20px; }
+.mc { background: #fff; border: 1.5px solid var(--line); border-radius: 14px; padding: 15px 16px; cursor: pointer; display: flex; align-items: center; gap: 13px; transition: all .13s; }
+.mc:active { transform: scale(.985); }
+.mc.on { border-color: var(--green); background: var(--green-lt); }
+.av { width: 44px; height: 44px; border-radius: 50%; background: var(--green); color: #fff; display: flex; align-items: center; justify-content: center; font: 700 16px/1 'Inter'; flex-shrink: 0; }
+.mi { flex: 1; min-width: 0; }
+.mn { font: 700 15px/1.3 'Inter'; }
+.mm { font-size: 13px; color: var(--muted); margin-top: 3px; }
+.no-m { color: var(--muted); font-size: 14px; text-align: center; padding: 24px 0; }
+
+.dup { background: var(--gold-lt); border: 1.5px solid #e2cb8e; border-radius: 14px; padding: 14px 16px; display: none; gap: 10px; font-size: 14px; color: #5c3f0e; line-height: 1.5; margin-bottom: 16px; }
+.dup.show { display: flex; }
+.sum { background: #fff; border: 1.5px solid var(--line); border-radius: var(--r); padding: 0 18px; margin-bottom: 28px; }
+.sr { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 14px 0; font-size: 15px; }
+.sr + .sr { border-top: 1px solid var(--line); }
+.sl { color: var(--muted); flex-shrink: 0; }
+.sv { font-weight: 600; text-align: right; }
+
+.suc-wrap { text-align: center; padding: 40px 0 32px; }
+.chk { width: 82px; height: 82px; border-radius: 50%; background: var(--green-lt); display: flex; align-items: center; justify-content: center; margin: 0 auto 22px; }
+.chk svg { width: 38px; height: 38px; }
+.chk path { fill: none; stroke: var(--green); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 40; stroke-dashoffset: 40; animation: draw .4s .1s ease forwards; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+.sn { font: 700 24px/1.2 'Fraunces', serif; margin-bottom: 8px; }
+.sm { color: var(--muted); font-size: 15px; }
+
+.stack { display: flex; flex-direction: column; gap: 10px; }
+.btn { border: none; width: 100%; font-family: 'Inter'; font-weight: 700; font-size: 17px; padding: 18px; border-radius: var(--r); cursor: pointer; transition: transform .1s, background .12s; min-height: 56px; }
+.btn:active { transform: scale(.985); }
+.btn-p { background: var(--green); color: #fff; }
+.btn-p:active { background: var(--green-dk); }
+.btn-p:disabled { background: var(--line); color: var(--muted); cursor: not-allowed; transform: none; }
+.btn-s { background: #fff; border: 1.5px solid var(--line); color: var(--ink); font-size: 16px; }
+
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 12px 20px; border-radius: 12px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 88%; text-align: center; z-index: 999; }
+.toast.show { opacity: 1; }
+canvas { display: none; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="topbar">
+    <button class="back-btn" id="backBtn" style="visibility:hidden" onclick="goBack()">‹ Back</button>
+    <div class="dots" id="dots"></div>
+    <div style="width:48px"></div>
+  </div>
+
+  <!-- VENUE -->
+  <div class="screen active" id="s-venue">
+    <div class="eye">Step 1 of 3</div>
+    <h1>Where are you scanning?</h1>
+    <p class="sub">Select your location for today.</p>
+    <div class="venue-grid" id="venueGrid"></div>
+    <div class="stack">
+      <button class="btn btn-p" id="venueNext" disabled onclick="goToCamera()">Continue →</button>
+    </div>
+  </div>
+
+  <!-- CAMERA -->
+  <div class="screen" id="s-camera">
+    <div class="eye">Step 2 of 3</div>
+    <h1>Scan the card</h1>
+
+    <div id="camStart">
+      <p class="sub">Align the student's name inside the guide box, then tap the shutter.</p>
+      <div class="tip">
+        <span class="tip-i">💡</span>
+        <span>Hold the card flat with good lighting. The name should fill the highlighted area of the viewfinder.</span>
+      </div>
+      <div class="stack">
+        <button class="btn btn-p" id="startCamBtn" onclick="startCamera()">📷 Start Camera</button>
+        <button class="btn btn-s" onclick="skipToSearch()">🔍 Search Manually</button>
+      </div>
+    </div>
+
+    <div class="viewfinder" id="viewfinder">
+      <video id="video" autoplay playsinline muted></video>
+      <div id="overlay">
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+          <defs>
+            <mask id="cardMask">
+              <rect width="100" height="100" fill="white"/>
+              <rect x="7" y="14" width="86" height="72" rx="2" fill="black"/>
+            </mask>
+          </defs>
+          <rect width="100" height="100" fill="rgba(0,0,0,.62)" mask="url(#cardMask)"/>
+          <rect x="7" y="14" width="86" height="72" rx="2" fill="none" stroke="white" stroke-width="1"/>
+          <polyline points="7,22 7,14 15,14"  fill="none" stroke="white" stroke-width="1.4" stroke-linecap="round"/>
+          <polyline points="85,14 93,14 93,22" fill="none" stroke="white" stroke-width="1.4" stroke-linecap="round"/>
+          <polyline points="7,78 7,86 15,86"  fill="none" stroke="white" stroke-width="1.4" stroke-linecap="round"/>
+          <polyline points="85,86 93,86 93,78" fill="none" stroke="white" stroke-width="1.4" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div style="position:absolute;top:9%;left:7%;width:86%;text-align:center;color:rgba(255,255,255,.9);font:700 10px/1 Inter,sans-serif;letter-spacing:.5px;text-transform:uppercase;text-shadow:0 1px 4px rgba(0,0,0,.9);">Fit card to box</div>
+    </div>
+
+    <div class="ocr-overlay" id="ocrOverlay">
+      <div class="ring"></div>
+      <p id="ocrOverlayMsg">Reading card…</p>
+    </div>
+
+    <div class="shutter-row" id="shutterRow">
+      <button class="side-btn" onclick="goBack()">← Back</button>
+      <button class="shutter" onclick="captureFrame()" aria-label="Capture"></button>
+      <button class="side-btn" onclick="stopCamera(); skipToSearch()">Search</button>
+    </div>
+
+    <canvas id="canvas"></canvas>
+  </div>
+
+  <!-- MATCH -->
+  <div class="screen" id="s-match">
+    <div class="eye">Step 3 of 3</div>
+    <h1>Select the student</h1>
+    <p class="sub" id="ocrText">Showing closest matches.</p>
+    <div class="ocr-row" id="ocrSpinner"><div class="spin"></div> Loading…</div>
+    <div class="search-box">
+      <span class="s-icon">🔍</span>
+      <input id="searchBox" type="text" placeholder="Search by name…" oninput="onSearch(this.value)" onkeyup="onSearch(this.value)">
+    </div>
+    <div class="matches" id="matchList"></div>
+    <div class="stack">
+      <button class="btn btn-p" id="matchNext" disabled onclick="goToConfirm()">Confirm student →</button>
+      <button class="btn btn-s" onclick="goToCamera()">← Retake / Rescan</button>
+    </div>
+  </div>
+
+  <!-- CONFIRM -->
+  <div class="screen" id="s-confirm">
+    <div class="eye">Confirm &amp; Log</div>
+    <h1>Look right?</h1>
+    <div class="dup" id="dupWarn">⚠️&nbsp;<div id="dupWarnText"></div></div>
+    <div class="sum">
+      <div class="sr"><span class="sl">Student</span><span class="sv" id="cfName"></span></div>
+      <div class="sr"><span class="sl">Class</span>  <span class="sv" id="cfClass"></span></div>
+      <div class="sr"><span class="sl">Reg #</span>  <span class="sv" id="cfReg"></span></div>
+      <div class="sr"><span class="sl">Venue</span>  <span class="sv" id="cfVenue"></span></div>
+      <div class="sr"><span class="sl">Time</span>   <span class="sv" id="cfTime"></span></div>
+    </div>
+    <div class="stack">
+      <button class="btn btn-p" id="confirmBtn" onclick="submit()">✓ Confirm &amp; Log</button>
+      <button class="btn btn-s" onclick="show('match')">← Change student</button>
+    </div>
+  </div>
+
+  <!-- SUCCESS -->
+  <div class="screen" id="s-success">
+    <div class="suc-wrap">
+      <div class="chk"><svg viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6"/></svg></div>
+      <div class="sn" id="sucName"></div>
+      <div class="sm" id="sucMeta"></div>
+      <div class="sm" id="sucNote" style="display:none;color:#B8860B;font-weight:600;"></div>
+    </div>
+    <div class="stack">
+      <button class="btn btn-p" onclick="nextScan()">Scan next student →</button>
+      <button class="btn btn-s" onclick="goToVenue()">Exit</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── CONFIG ─────────────────────────────────────────────────────
+// PASTE YOUR APPS SCRIPT DEPLOYMENT URL HERE after deploying Code.gs.
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbzJkWKTiKvDm4RX9RR51G1y1_afWPjmoMsQRDphTldPsW7dTl0GrMXxiolafLU4NNdMFQ/exec';
+
+var VENUES = ['CC', 'Side Gate', 'Guardhouse', 'JBB'];
+
+// ─── STATE ──────────────────────────────────────────────────────
+// NOTE: there is deliberately NO student roster in this file. Every
+// match comes from the Apps Script backend (Code.gs), which holds the
+// roster in Workspace and only ever sends back the handful of students
+// that matched a given search — never the full list. See matchStudents_
+// in Code.gs if you need to look at or edit the roster.
+var venue     = '';
+var selected  = null;
+var mediaStream = null;
+var cameraEverStarted = false;
+var stack     = ['venue'];
+var STEP      = { venue:1, camera:2, match:3, confirm:3 };
+var searchDebounceTimer = null;
+
+// ─── API HELPERS ────────────────────────────────────────────────────────
+function gasGet(action, params) {
+  var qs = new URLSearchParams(Object.assign({ action: action }, params || {}));
+  return fetch(GAS_URL + '?' + qs.toString())
+    .then(function(r){ return r.json(); });
+}
+function gasPost(action, body) {
+  return fetch(GAS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(Object.assign({ action: action }, body || {}))
+  }).then(function(r){ return r.json(); });
+}
+
+// ─── INIT ────────────────────────────────────────────────────────
+window.addEventListener('load', function() {
+  buildVenueGrid(VENUES);
+  checkBackendReachable();
+});
+
+function checkBackendReachable() {
+  if (GAS_URL.indexOf('YOUR_GAS_DEPLOYMENT_URL_HERE') !== -1) {
+    showToast('⚠️ Setup incomplete: GAS_URL is still the placeholder in scanner.html.', 6000);
+    return;
+  }
+  gasGet('getConfig', {})
+    .then(function(res) {
+      if (!res || !res.venues) showToast('⚠️ Backend reachable but response looks wrong — check Code.gs deployment.', 5000);
+    })
+    .catch(function(err) {
+      showToast('⚠️ Cannot reach scanner backend: ' + diagnoseError(err), 6000);
+    });
+}
+
+// ─── TOAST ──────────────────────────────────────────────────────
+function showToast(msg, ms) {
+  var t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); }, ms || 2800);
+}
+
+// ─── DOTS ────────────────────────────────────────────────────────
+function setDots(id) {
+  var n  = STEP[id] || 0;
+  var el = document.getElementById('dots');
+  el.innerHTML = '';
+  for (var i = 1; i <= 3; i++) {
+    var d = document.createElement('div');
+    d.className = 'dot' + (i <= n ? ' on' : '');
+    el.appendChild(d);
+  }
+}
+
+// ─── NAV ─────────────────────────────────────────────────────────
+function show(id) {
+  document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+  document.getElementById('s-' + id).classList.add('active');
+  document.getElementById('backBtn').style.visibility = (id === 'venue' || id === 'success') ? 'hidden' : 'visible';
+  setDots(id); window.scrollTo(0, 0);
+}
+function nav(id) { stack.push(id); show(id); }
+function goBack() {
+  if (stack.length <= 1) return;
+  stack.pop();
+  var prev = stack[stack.length - 1];
+  stopCamera();
+  show(prev);
+  if (prev === 'camera') enterCameraScreen();
+}
+
+// ─── VENUE ──────────────────────────────────────────────────────
+function buildVenueGrid(venues) {
+  VENUES = venues;
+  var g = document.getElementById('venueGrid');
+  g.innerHTML = '';
+  venues.forEach(function(v) {
+    var b = document.createElement('button');
+    b.className = 'vc';
+    b.textContent = v;
+    b.onclick = function() {
+      g.querySelectorAll('.vc').forEach(function(c){ c.classList.remove('on'); });
+      b.classList.add('on'); venue = v;
+      document.getElementById('venueNext').disabled = false;
+    };
+    g.appendChild(b);
+  });
+}
+
+function goToVenue() {
+  stopCamera();
+  venue = '';
+  document.querySelectorAll('.vc').forEach(function(c){ c.classList.remove('on'); });
+  document.getElementById('venueNext').disabled = true;
+  stack = ['venue']; show('venue');
+}
+
+// ─── CAMERA ─────────────────────────────────────────────────────
+function resetCameraPanels() {
+  document.getElementById('camStart').style.display  = 'block';
+  document.getElementById('viewfinder').classList.remove('show');
+  document.getElementById('shutterRow').classList.remove('show');
+  document.getElementById('ocrOverlay').classList.remove('show');
+  document.getElementById('startCamBtn').disabled = false;
+  document.getElementById('startCamBtn').textContent = '📷 Start Camera';
+}
+function enterCameraScreen() {
+  resetCameraPanels();
+  if (cameraEverStarted) startCamera();
+}
+function goToCamera() {
+  stopCamera();
+  nav('camera');
+  enterCameraScreen();
+}
+function startCamera() {
+  var btn = document.getElementById('startCamBtn');
+  btn.disabled = true; btn.textContent = 'Starting…';
+
+  navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 } },
+    audio: false
+  }).then(function(stream) {
+    cameraEverStarted = true;
+    mediaStream = stream;
+    document.getElementById('video').srcObject = stream;
+    document.getElementById('camStart').style.display = 'none';
+    document.getElementById('viewfinder').classList.add('show');
+    document.getElementById('shutterRow').classList.add('show');
+  }).catch(function(err) {
+    btn.disabled = false; btn.textContent = '📷 Start Camera';
+    if (err.name === 'NotAllowedError') {
+      showToast('Camera blocked — tap "Search Manually" instead.', 3500);
+    } else {
+      showToast('Camera error: ' + err.message);
+    }
+  });
+}
+function stopCamera() {
+  if (mediaStream) { mediaStream.getTracks().forEach(function(t){ t.stop(); }); mediaStream = null; }
+  var v = document.getElementById('video'); v.srcObject = null;
+}
+
+function captureFrame() {
+  var video  = document.getElementById('video');
+  var canvas = document.getElementById('canvas');
+  var nativeW = video.videoWidth;
+  var nativeH = video.videoHeight;
+  var boxW = video.clientWidth;
+  var boxH = video.clientHeight;
+  var nativeAspect = nativeW / nativeH;
+  var boxAspect    = boxW / boxH;
+
+  var visW, visH, visX, visY;
+  if (nativeAspect > boxAspect) {
+    visH = nativeH; visW = visH * boxAspect; visY = 0; visX = (nativeW - visW) / 2;
+  } else {
+    visW = nativeW; visH = visW / boxAspect; visX = 0; visY = (nativeH - visH) / 2;
+  }
+
+  var cardX = Math.round(visX + visW * 0.07);
+  var cardY = Math.round(visY + visH * 0.14);
+  var cardW = Math.round(visW * 0.86);
+  var cardH = Math.round(visH * 0.72);
+
+  var MAX_EDGE = 1200;
+  var scale = Math.min(1, MAX_EDGE / Math.max(cardW, cardH));
+  canvas.width  = Math.round(cardW * scale);
+  canvas.height = Math.round(cardH * scale);
+  canvas.getContext('2d').drawImage(video, cardX, cardY, cardW, cardH, 0, 0, canvas.width, canvas.height);
+
+  stopCamera();
+  document.getElementById('viewfinder').classList.remove('show');
+  document.getElementById('shutterRow').classList.remove('show');
+  document.getElementById('ocrOverlay').classList.add('show');
+  document.getElementById('ocrOverlayMsg').textContent = 'Reading card…';
+
+  runOcr(canvas);
+}
+
+function runOcr(canvas) {
+  var dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+  var base64  = dataUrl.split(',')[1];
+
+  gasPost('ocrImage', { base64: base64 })
+    .then(function(res) {
+      document.getElementById('ocrOverlay').classList.remove('show');
+      if (!res || !res.ok) {
+        showToast('OCR failed: ' + ((res && res.error) || 'unknown error') + ' — search manually.', 4000);
+        onOcrText('');
+        return;
+      }
+      onOcrText(res.text || '');
+    })
+    .catch(function(err) {
+      document.getElementById('ocrOverlay').classList.remove('show');
+      showToast(diagnoseError(err), 5000);
+      onOcrText('');
+    });
+}
+
+function diagnoseError(err) {
+  if (GAS_URL.indexOf('YOUR_GAS_DEPLOYMENT_URL_HERE') !== -1) {
+    return 'GAS_URL is still the placeholder — paste your Apps Script deployment URL into scanner.html.';
+  }
+  var msg = (err && err.message) || String(err);
+  if (msg.indexOf('Failed to fetch') !== -1 || msg.indexOf('NetworkError') !== -1) {
+    return 'Network/CORS error reaching the backend (' + msg + '). Check: deployment access is "Anyone" (not restricted to a Google account/domain), and that you redeployed a NEW VERSION after the last edit.';
+  }
+  if (msg.toLowerCase().indexOf('json') !== -1) {
+    return 'Backend responded but not with JSON (' + msg + ') — likely a login page or error page came back instead. Check deployment access is set to "Anyone."';
+  }
+  return 'Backend error: ' + msg;
+}
+
+// onOcrText now asks the SERVER for matches instead of searching a local
+// array — this is the main change from the old version.
+function onOcrText(text) {
+  var name = extractName(text);
+  if (name) {
+    resetMatchScreen('Read: "' + name + '"');
+    document.getElementById('searchBox').value = name;
+    document.getElementById('ocrSpinner').classList.add('show');
+    gasGet('matchStudent', { q: name })
+      .then(function(res) {
+        document.getElementById('ocrSpinner').classList.remove('show');
+        renderMatches((res && res.matches) || []);
+      })
+      .catch(function() {
+        document.getElementById('ocrSpinner').classList.remove('show');
+        renderMatches([]);
+      });
+  } else {
+    var preview = (text || '').trim().slice(0, 160).replace(/\n/g, ' / ');
+    resetMatchScreen(preview ? 'Could not find a name — raw text: "' + preview + '"' : 'Could not read the card — search below.');
+    renderMatches([]);
+  }
+  nav('match');
+}
+
+// ─── MANUAL SEARCH ───────────────────────────────────────────────
+function skipToSearch() {
+  stopCamera();
+  resetMatchScreen('Search and select the student.');
+  document.getElementById('ocrSpinner').classList.remove('show');
+  renderMatches([]);
+  nav('match');
+  setTimeout(function(){ document.getElementById('searchBox').focus(); }, 300);
+}
+
+// ─── NAME EXTRACTION (unchanged — this just cleans OCR text, no roster needed) ───
+var STOP_WORDS = /secondary|pre-?u|issued|ministry|education|valid|expiry|expires|student pass|identity card|republic of singapore|junior college|singapore|date of birth|nationality|^class$/i;
+function looksLikeStopLine(l) {
+  if (/^[STGMF]\d{7}[A-Z]$/i.test(l.replace(/\s/g,''))) return true;
+  if (/\d{2}\/\d{2}\/\d{4}/.test(l)) return true;
+  if (STOP_WORDS.test(l)) return true;
+  return false;
+}
+function looksLikeNameLine(l) {
+  if (!l || looksLikeStopLine(l)) return false;
+  var letters = l.replace(/[^A-Za-z\s'(),\-]/g, '');
+  if (letters.length < l.length * 0.75) return false;
+  if (l.length < 3 || l.length > 45) return false;
+  return true;
+}
+function extractName(raw) {
+  var lines = raw.split(/\n/).map(function(l){ return l.trim(); }).filter(Boolean);
+  var start = -1;
+  for (var i = 0; i < lines.length; i++) {
+    if (looksLikeNameLine(lines[i])) { start = i; break; }
+  }
+  if (start === -1) return '';
+  var parts = [lines[start]];
+  for (var j = start + 1; j < lines.length && parts.length < 3; j++) {
+    if (!looksLikeNameLine(lines[j])) break;
+    parts.push(lines[j]);
+  }
+  return parts.join(' ').replace(/\s+/g, ' ').trim().toUpperCase();
+}
+
+// ─── MATCH UI ─────────────────────────────────────────────────────
+function resetMatchScreen(msg) {
+  document.getElementById('ocrSpinner').classList.remove('show');
+  document.getElementById('ocrText').textContent = msg;
+  document.getElementById('matchList').innerHTML = '';
+  document.getElementById('searchBox').value = '';
+  document.getElementById('matchNext').disabled = true;
+  selected = null;
+}
+
+function renderMatches(ms) {
+  var list = document.getElementById('matchList');
+  list.innerHTML = ''; selected = null;
+  document.getElementById('matchNext').disabled = true;
+  if (!ms.length) { list.innerHTML = '<div class="no-m">No matches — try typing the name.</div>'; return; }
+  ms.forEach(function(m) {
+    var ini = m.name.split(' ').slice(0,2).map(function(w){return w[0];}).join('');
+    var c = document.createElement('div'); c.className = 'mc';
+    c.innerHTML = '<div class="av">' + ini + '</div>' +
+      '<div class="mi"><div class="mn">' + m.name + '</div><div class="mm">' + m.cls + ' · Reg #' + m.reg + '</div></div>';
+    c.onclick = function() {
+      list.querySelectorAll('.mc').forEach(function(x){ x.classList.remove('on'); });
+      c.classList.add('on'); selected = m;
+      document.getElementById('matchNext').disabled = false;
+    };
+    list.appendChild(c);
+  });
+}
+
+// Debounced — every keystroke now costs a network round-trip to the
+// backend, so we wait for a short pause in typing before asking.
+function onSearch(q) {
+  var t = q.trim();
+  clearTimeout(searchDebounceTimer);
+  if (!t) { renderMatches([]); return; }
+  document.getElementById('ocrSpinner').classList.add('show');
+  searchDebounceTimer = setTimeout(function() {
+    gasGet('matchStudent', { q: t })
+      .then(function(res) {
+        document.getElementById('ocrSpinner').classList.remove('show');
+        renderMatches((res && res.matches) || []);
+      })
+      .catch(function() {
+        document.getElementById('ocrSpinner').classList.remove('show');
+        renderMatches([]);
+      });
+  }, 250);
+}
+
+// ─── CONFIRM ──────────────────────────────────────────────────────
+function goToConfirm() {
+  if (!selected) return;
+  document.getElementById('cfName').textContent  = selected.name;
+  document.getElementById('cfClass').textContent = selected.cls;
+  document.getElementById('cfReg').textContent   = selected.reg;
+  document.getElementById('cfVenue').textContent = venue;
+  document.getElementById('cfTime').textContent  = new Date().toLocaleTimeString('en-SG',{hour:'2-digit',minute:'2-digit'});
+  document.getElementById('dupWarn').classList.remove('show');
+  document.getElementById('confirmBtn').disabled = false;
+  document.getElementById('confirmBtn').textContent = '✓ Confirm & Log';
+  nav('confirm');
+
+  // Cohort no longer needs to be sent — the server derives it itself
+  // from the class code, so there's nothing here for the client to get
+  // wrong or spoof.
+  gasGet('checkDuplicate', { cls: selected.cls, name: selected.name })
+    .then(function(res) {
+      var warn = document.getElementById('dupWarn');
+      var text = document.getElementById('dupWarnText');
+      if (!res || !res.scannedToday) { warn.classList.remove('show'); return; }
+      if (res.withinCooldown) {
+        text.innerHTML = '<strong>Scanned ' + res.minutesSince + ' min ago.</strong> This looks like an accidental repeat scan and will be blocked — if this is genuinely a separate occasion, wait a few minutes and try again.';
+      } else {
+        text.innerHTML = '<strong>Already late once today.</strong> Confirming will log this as their ' + ordinal(res.occurrence + 1) + ' late today.';
+      }
+      warn.classList.add('show');
+    })
+    .catch(function(){});
+}
+function ordinal(n) {
+  var s = ['th','st','nd','rd'], v = n % 100;
+  return n + (s[(v-20)%10] || s[v] || s[0]);
+}
+
+// ─── SUBMIT ───────────────────────────────────────────────────────
+function submit() {
+  var btn = document.getElementById('confirmBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  gasGet('logScan', { reg: selected.reg, cls: selected.cls, name: selected.name, venue: venue })
+    .then(function(res) {
+      if (!res || res.ok !== true) {
+        btn.disabled = false; btn.textContent = '✓ Confirm & Log';
+        if (res && res.duplicate) {
+          showToast('Scanned ' + res.minutesSince + ' min ago — treating this as an accidental repeat, not saved again.', 4500);
+        } else {
+          showToast('Save failed: ' + ((res && res.error) || 'unknown error') + '. Tap Confirm to retry.', 4500);
+        }
+        return;
+      }
+      document.getElementById('sucName').textContent = selected.name;
+      document.getElementById('sucMeta').textContent = selected.cls + ' · #' + selected.reg + ' · ' + venue;
+      var note = document.getElementById('sucNote');
+      if (res.occurrence > 1) {
+        note.textContent = '⚠ Logged as their ' + ordinal(res.occurrence) + ' late today';
+        note.style.display = 'block';
+      } else {
+        note.style.display = 'none';
+      }
+      nav('success');
+    })
+    .catch(function(err) {
+      btn.disabled = false; btn.textContent = '✓ Confirm & Log';
+      showToast(diagnoseError(err), 5000);
+    });
+}
+
+function nextScan() { selected = null; goToCamera(); }
+</script>
+</body>
+</html>
