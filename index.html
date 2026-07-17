@@ -597,13 +597,19 @@ function goToConfirm() {
     .then(function(res) {
       var warn = document.getElementById('dupWarn');
       var text = document.getElementById('dupWarnText');
-      if (!res || !res.scannedToday) { warn.classList.remove('show'); return; }
-      if (res.withinCooldown) {
+      if (!res) { warn.classList.remove('show'); return; }
+      if (res.scannedToday && res.withinCooldown) {
         text.innerHTML = '<strong>Scanned ' + res.minutesSince + ' min ago.</strong> This looks like an accidental repeat scan and will be blocked — if this is genuinely a separate occasion, wait a few minutes and try again.';
-      } else {
-        text.innerHTML = '<strong>Already late once today.</strong> Confirming will log this as their ' + ordinal(res.occurrence + 1) + ' late today.';
+        warn.classList.add('show');
+        return;
       }
-      warn.classList.add('show');
+      if (res.predictedLateCount > 1) {
+        text.innerHTML = '<strong>Arriving after the double-late cutoff.</strong> This will be logged as a DOUBLE late (counts as 2 towards their total).';
+        warn.classList.add('show');
+        return;
+      }
+      warn.classList.remove('show');
+    })
     })
     .catch(function(){});
 }
@@ -631,8 +637,8 @@ function submit() {
       document.getElementById('sucName').textContent = selected.name;
       document.getElementById('sucMeta').textContent = selected.cls + ' · #' + selected.reg + ' · ' + venue;
       var note = document.getElementById('sucNote');
-      if (res.occurrence > 1) {
-        note.textContent = '⚠ Logged as their ' + ordinal(res.occurrence) + ' late today';
+      if (res.lateCount > 1) {
+        note.textContent = '⚠ Logged as a DOUBLE late (counts as 2)';
         note.style.display = 'block';
       } else {
         note.style.display = 'none';
