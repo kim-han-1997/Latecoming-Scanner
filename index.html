@@ -205,6 +205,10 @@ canvas { display: none; }
       <div class="sr"><span class="sl">Reg #</span>  <span class="sv" id="cfReg"></span></div>
       <div class="sr"><span class="sl">Venue</span>  <span class="sv" id="cfVenue"></span></div>
       <div class="sr"><span class="sl">Time</span>   <span class="sv" id="cfTime"></span></div>
+      <div class="sr">
+        <span class="sl">Backdate?</span>
+        <span class="sv"><input type="checkbox" id="cfBackdateToggle" onchange="toggleBackdate()"> <input type="time" id="cfBackdateTime" style="display:none;font-size:15px;"></span>
+      </div>
     </div>
     <div class="stack">
       <button class="btn btn-p" id="confirmBtn" onclick="submit()">✓ Confirm &amp; Log</button>
@@ -230,17 +234,11 @@ canvas { display: none; }
 
 <script>
 // ─── CONFIG ─────────────────────────────────────────────────────
-// PASTE YOUR APPS SCRIPT DEPLOYMENT URL HERE after deploying Code.gs.
 var GAS_URL = 'https://script.google.com/macros/s/AKfycbzJkWKTiKvDm4RX9RR51G1y1_afWPjmoMsQRDphTldPsW7dTl0GrMXxiolafLU4NNdMFQ/exec';
 
 var VENUES = ['CC', 'Side Gate', 'Guardhouse', 'JBB'];
 
 // ─── STATE ──────────────────────────────────────────────────────
-// NOTE: there is deliberately NO student roster in this file. Every
-// match comes from the Apps Script backend (Code.gs), which holds the
-// roster in Workspace and only ever sends back the handful of students
-// that matched a given search — never the full list. See matchStudents_
-// in Code.gs if you need to look at or edit the roster.
 var venue     = '';
 var selected  = null;
 var mediaStream = null;
@@ -463,8 +461,6 @@ function diagnoseError(err) {
   return 'Backend error: ' + msg;
 }
 
-// onOcrText now asks the SERVER for matches instead of searching a local
-// array — this is the main change from the old version.
 function onOcrText(text) {
   var name = extractName(text);
   if (name) {
@@ -498,7 +494,7 @@ function skipToSearch() {
   setTimeout(function(){ document.getElementById('searchBox').focus(); }, 300);
 }
 
-// ─── NAME EXTRACTION (unchanged — this just cleans OCR text, no roster needed) ───
+// ─── NAME EXTRACTION ───────────────────────────────────────────
 var STOP_WORDS = /secondary|pre-?u|issued|ministry|education|valid|expiry|expires|student pass|identity card|republic of singapore|junior college|singapore|date of birth|nationality|^class$/i;
 function looksLikeStopLine(l) {
   if (/^[STGMF]\d{7}[A-Z]$/i.test(l.replace(/\s/g,''))) return true;
@@ -528,7 +524,7 @@ function extractName(raw) {
   return parts.join(' ').replace(/\s+/g, ' ').trim().toUpperCase();
 }
 
-// ─── MATCH UI ─────────────────────────────────────────────────────
+// ─── FUZZY MATCH UI ───────────────────────────────────────────────
 function resetMatchScreen(msg) {
   document.getElementById('ocrSpinner').classList.remove('show');
   document.getElementById('ocrText').textContent = msg;
@@ -557,8 +553,6 @@ function renderMatches(ms) {
   });
 }
 
-// Debounced — every keystroke now costs a network round-trip to the
-// backend, so we wait for a short pause in typing before asking.
 function onSearch(q) {
   var t = q.trim();
   clearTimeout(searchDebounceTimer);
@@ -585,14 +579,19 @@ function goToConfirm() {
   document.getElementById('cfReg').textContent   = selected.reg;
   document.getElementById('cfVenue').textContent = venue;
   document.getElementById('cfTime').textContent  = new Date().toLocaleTimeString('en-SG',{hour:'2-digit',minute:'2-digit',hour12:true});
+
+  // Reset the backdate toggle every time this screen is entered fresh —
+  // otherwise a backdate set for one student could accidentally carry
+  // over and get applied to the next student scanned.
+  document.getElementById('cfBackdateToggle').checked = false;
+  document.getElementById('cfBackdateTime').style.display = 'none';
+  document.getElementById('cfBackdateTime').value = '';
+
   document.getElementById('dupWarn').classList.remove('show');
   document.getElementById('confirmBtn').disabled = false;
   document.getElementById('confirmBtn').textContent = '✓ Confirm & Log';
   nav('confirm');
 
-  // Cohort no longer needs to be sent — the server derives it itself
-  // from the class code, so there's nothing here for the client to get
-  // wrong or spoof.
   gasGet('checkDuplicate', { cls: selected.cls, name: selected.name })
     .then(function(res) {
       var warn = document.getElementById('dupWarn');
@@ -612,9 +611,15 @@ function goToConfirm() {
     })
     .catch(function(){});
 }
-function ordinal(n) {
-  var s = ['th','st','nd','rd'], v = n % 100;
-  return n + (s[(v-20)%10] || s[v] || s[0]);
+
+function toggleBackdate() {
+  var on = document.getElementById('cfBackdateToggle').checked;
+  var timeInput = document.getElementById('cfBackdateTime');
+  timeInput.style.display = on ? 'inline-block' : 'none';
+  if (on && !timeInput.value) {
+    var n = new Date();
+    timeInput.value = String(n.getHours()).padStart(2,'0') + ':' + String(n.getMinutes()).padStart(2,'0');
+  }
 }
 
 // ─── SUBMIT ───────────────────────────────────────────────────────
@@ -622,7 +627,17 @@ function submit() {
   var btn = document.getElementById('confirmBtn');
   btn.disabled = true; btn.textContent = 'Saving…';
 
-  gasGet('logScan', { reg: selected.reg, cls: selected.cls, name: selected.name, venue: venue })
+  // If backdating is on, send the chosen HH:MM through as atTime — the
+  // backend uses this instead of "right now" to decide the logged time
+  // AND to work out whether it's a double late, so a paper backlog
+  // entered later in the day still gets judged against the real cutoff.
+  var backdateOn = document.getElementById('cfBackdateToggle').checked;
+  var atTime = backdateOn ? document.getElementById('cfBackdateTime').value : null;
+
+  var params = { reg: selected.reg, cls: selected.cls, name: selected.name, venue: venue };
+  if (atTime) params.atTime = atTime;
+
+  gasGet('logScan', params)
     .then(function(res) {
       if (!res || res.ok !== true) {
         btn.disabled = false; btn.textContent = '✓ Confirm & Log';
