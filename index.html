@@ -584,7 +584,7 @@ function goToConfirm() {
   document.getElementById('cfClass').textContent = selected.cls;
   document.getElementById('cfReg').textContent   = selected.reg;
   document.getElementById('cfVenue').textContent = venue;
-  document.getElementById('cfTime').textContent  = new Date().toLocaleTimeString('en-SG',{hour:'2-digit',minute:'2-digit'});
+  document.getElementById('cfTime').textContent  = new Date().toLocaleTimeString('en-SG',{hour:'2-digit',minute:'2-digit',hour12:true});
   document.getElementById('dupWarn').classList.remove('show');
   document.getElementById('confirmBtn').disabled = false;
   document.getElementById('confirmBtn').textContent = '✓ Confirm & Log';
